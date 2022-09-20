@@ -587,194 +587,73 @@ let () = Btype.print_raw := raw_type_expr
 
 (* Normalize paths *)
 
-type param_subst = Id | Nth of int | Map of int list
-
-let is_nth = function
-    Nth _ -> true
-  | _ -> false
-
-let compose l1 = function
-  | Id -> Map l1
-  | Map l2 -> Map (List.map (List.nth l1) l2)
-  | Nth n  -> Nth (List.nth l1 n)
-
-let apply_subst s1 tyl =
-  if tyl = [] then []
-  (* cf. PR#7543: Typemod.type_package doesn't respect type constructor arity *)
-  else
-    match s1 with
-      Nth n1 -> [List.nth tyl n1]
-    | Map l1 -> List.map (List.nth tyl) l1
-    | Id -> tyl
-
-type best_path = Paths of Path.t list | Best of Path.t
-
-(** Short-paths cache: the five mutable variables below implement a one-slot
-    cache for short-paths
- *)
-let printing_old = ref Env.empty
-let printing_pers = ref String.Set.empty
-(** {!printing_old} and  {!printing_pers} are the keys of the one-slot cache *)
-
-let printing_depth = ref 0
-let printing_cont = ref ([] : Env.iter_cont list)
-let printing_map = ref Path.Map.empty
-(**
-   - {!printing_map} is the main value stored in the cache.
-   Note that it is evaluated lazily and its value is updated during printing.
-   - {!printing_dep} is the current exploration depth of the environment,
-   it is used to determine whenever the {!printing_map} should be evaluated
-   further before completing a request.
-   - {!printing_cont} is the list of continuations needed to evaluate
-   the {!printing_map} one level further (see also {!Env.run_iter_cont})
-*)
-
-let rec index l x =
-  match l with
-    [] -> raise Not_found
-  | a :: l -> if eq_type x a then 0 else 1 + index l x
-
-let rec uniq = function
-    [] -> true
-  | a :: l -> not (List.memq (a : int) l) && uniq l
-
-let rec normalize_type_path ?(cache=false) env p =
-  try
-    let (params, ty, _) = Env.find_type_expansion p env in
-    match get_desc ty with
-      Tconstr (p1, tyl, _) ->
-        if List.length params = List.length tyl
-        && List.for_all2 eq_type params tyl
-        then normalize_type_path ~cache env p1
-        else if cache || List.length params <= List.length tyl
-             || not (uniq (List.map get_id tyl)) then (p, Id)
-        else
-          let l1 = List.map (index params) tyl in
-          let (p2, s2) = normalize_type_path ~cache env p1 in
-          (p2, compose l1 s2)
-    | _ ->
-        (p, Nth (index params ty))
-  with
-    Not_found ->
-      (Env.normalize_type_path None env p, Id)
-
-let penalty s =
-  if s <> "" && s.[0] = '_' then
-    10
-  else
-    match find_double_underscore s with
-    | None -> 1
-    | Some _ -> 10
-
-let rec path_size = function
-    Pident id ->
-      penalty (Ident.name id), -Ident.scope id
-  | Pdot (p, _) | Pextra_ty (p, Pcstr_ty _) ->
-      let (l, b) = path_size p in (1+l, b)
-  | Papply (p1, p2) ->
-      let (l, b) = path_size p1 in
-      (l + fst (path_size p2), b)
-  | Pextra_ty (p, _) -> path_size p
-
-let same_printing_env env =
-  let used_pers = Env.used_persistent () in
-  Env.same_types !printing_old env && String.Set.equal !printing_pers used_pers
-
 let set_printing_env env =
-  printing_env := env;
-  if !Clflags.real_paths ||
-     !printing_env == Env.empty ||
-     same_printing_env env then
-    ()
-  else begin
-    (* printf "Reset printing_map@."; *)
-    printing_old := env;
-    printing_pers := Env.used_persistent ();
-    printing_map := Path.Map.empty;
-    printing_depth := 0;
-    (* printf "Recompute printing_map.@."; *)
-    let cont =
-      Env.iter_types
-        (fun p (p', _decl) ->
-          let (p1, s1) = normalize_type_path env p' ~cache:true in
-          (* Format.eprintf "%a -> %a = %a@." path p path p' path p1 *)
-          if s1 = Id then
-          try
-            let r = Path.Map.find p1 !printing_map in
-            match !r with
-              Paths l -> r := Paths (p :: l)
-            | Best p' -> r := Paths [p; p'] (* assert false *)
-          with Not_found ->
-            printing_map := Path.Map.add p1 (ref (Paths [p])) !printing_map)
-        env in
-    printing_cont := [cont];
-  end
+  printing_env :=
+    if !Clflags.real_paths then env(*XXX Env.empty *)
+    else env
 
 let wrap_printing_env env f =
-  set_printing_env env; reset_naming_context ();
+  set_printing_env (Env.update_short_paths env);
+  reset_naming_context ();
   try_finally f ~always:(fun () -> set_printing_env Env.empty)
 
-let wrap_printing_env ~error env f =
-  if error then Env.without_cmis (wrap_printing_env env) f
-  else wrap_printing_env env f
+let wrap_printing_env ?error:_ env f =
+  Env.without_cmis (wrap_printing_env env) f
 
-let rec lid_of_path = function
-    Path.Pident id ->
-      Longident.Lident (Ident.name id)
-  | Path.Pdot (p1, s) | Path.Pextra_ty (p1, Pcstr_ty s)  ->
-      Longident.Ldot (lid_of_path p1, s)
-  | Path.Papply (p1, p2) ->
-      Longident.Lapply (lid_of_path p1, lid_of_path p2)
-  | Path.Pextra_ty (p, Pext_ty) -> lid_of_path p
+type type_result = Short_paths.type_result =
+  | Nth of int
+  | Path of int list option * Path.t
 
-let is_unambiguous path env =
-  let l = Env.find_shadowed_types path env in
-  List.exists (Path.same path) l || (* concrete paths are ok *)
-  match l with
-    [] -> true
-  | p :: rem ->
-      (* allow also coherent paths:  *)
-      let normalize p = fst (normalize_type_path ~cache:true env p) in
-      let p' = normalize p in
-      List.for_all (fun p -> Path.same (normalize p) p') rem ||
-      (* also allow repeatedly defining and opening (for toplevel) *)
-      let id = lid_of_path p in
-      List.for_all (fun p -> lid_of_path p = id) rem &&
-      Path.same p (fst (Env.find_type_by_name id env))
+type type_resolution = Short_paths.type_resolution =
+  | Nth of int
+  | Subst of int list
+  | Id
 
-let rec get_best_path r =
-  match !r with
-    Best p' -> p'
-  | Paths [] -> raise Not_found
-  | Paths l ->
-      r := Paths [];
-      List.iter
-        (fun p ->
-          (* Format.eprintf "evaluating %a@." path p; *)
-          match !r with
-            Best p' when path_size p >= path_size p' -> ()
-          | _ -> if is_unambiguous p !printing_env then r := Best p)
-              (* else Format.eprintf "%a ignored as ambiguous@." path p *)
-        l;
-      get_best_path r
+let apply_subst ns args =
+  List.map (List.nth args) ns
+
+let apply_subst_opt nso args =
+  match nso with
+  | None -> args
+  | Some ns -> apply_subst ns args
+
+let apply_nth n args =
+  List.nth args n
 
 let best_type_path p =
-  if !printing_env == Env.empty
-  then (p, Id)
-  else if !Clflags.real_paths
-  then (p, Id)
-  else
-    let (p', s) = normalize_type_path !printing_env p in
-    let get_path () = get_best_path (Path.Map.find  p' !printing_map) in
-    while !printing_cont <> [] &&
-      try fst (path_size (get_path ())) > !printing_depth with Not_found -> true
-    do
-      printing_cont := List.map snd (Env.run_iter_cont !printing_cont);
-      incr printing_depth;
-    done;
-    let p'' = try get_path () with Not_found -> p' in
-    (* Format.eprintf "%a = %a -> %a@." path p path p' path p''; *)
-    (p'', s)
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then Path(None, p)
+  else Short_paths.find_type (Env.short_paths !printing_env) p
+
+let best_type_path_resolution p =
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then Id
+  else Short_paths.find_type_resolution (Env.short_paths !printing_env) p
+
+let best_type_path_simple p =
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then p
+  else Short_paths.find_type_simple (Env.short_paths !printing_env) p
+
+let best_module_type_path p =
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then p
+  else Short_paths.find_module_type (Env.short_paths !printing_env) p
+
+let best_module_path p =
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then p
+  else Short_paths.find_module (Env.short_paths !printing_env) p
+
+let best_class_type_path p =
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then None, p
+  else Short_paths.find_class_type (Env.short_paths !printing_env) p
+
+let best_class_type_path_simple p =
+  if !Clflags.real_paths || !printing_env == Env.empty
+  then p
+  else Short_paths.find_class_type_simple (Env.short_paths !printing_env) p
 
 (* Print a type expression *)
 
@@ -804,9 +683,15 @@ let nameable_row row =
    subterms that would be printed by the type printer. *)
 let printer_iter_type_expr f ty =
   match get_desc ty with
-  | Tconstr(p, tyl, _) ->
-      let (_p', s) = best_type_path p in
-      List.iter f (apply_subst s tyl)
+  | Tconstr(p, tyl, _) -> begin
+      match best_type_path_resolution p with
+      | Nth n ->
+          f (apply_nth n tyl)
+      | Subst ns ->
+        List.iter f (apply_subst ns tyl)
+      | Id ->
+          List.iter f tyl
+      end
   | Tvariant row -> begin
       match row_name row with
       | Some(_p, tyl) when nameable_row row ->
@@ -1022,8 +907,11 @@ let add_printed_alias ty = add_printed_alias_proxy (proxy ty)
 let aliasable ty =
   match get_desc ty with
     Tvar _ | Tunivar _ | Tpoly _ -> false
-  | Tconstr (p, _, _) ->
-      not (is_nth (snd (best_type_path p)))
+  | Tconstr (p, _, _) -> begin
+      match best_type_path_resolution p with
+      | Nth _ -> false
+      | Subst _ | Id -> true
+    end
   | _ -> true
 
 let should_visit_object ty =
@@ -1110,12 +998,13 @@ let rec tree_of_typexp mode ty =
         Otyp_arrow (lab, t1, tree_of_typexp mode ty2)
     | Ttuple tyl ->
         Otyp_tuple (tree_of_typlist mode tyl)
-    | Tconstr(p, tyl, _abbrev) ->
-        let p', s = best_type_path p in
-        let tyl' = apply_subst s tyl in
-        if is_nth s && not (tyl'=[])
-        then tree_of_typexp mode (List.hd tyl')
-        else Otyp_constr (tree_of_path Type p', tree_of_typlist mode tyl')
+    | Tconstr(p, tyl, _abbrev) -> begin
+        match best_type_path p with
+        | Nth n -> tree_of_typexp mode (apply_nth n tyl)
+        | Path(nso, p) ->
+            let tyl' = apply_subst_opt nso tyl in
+            Otyp_constr (tree_of_path Type p, tree_of_typlist mode tyl')
+      end
     | Tvariant row ->
         let Row {fields; name; closed} = row_repr row in
         let fields =
@@ -1133,11 +1022,14 @@ let rec tree_of_typexp mode ty =
         let all_present = List.length present = List.length fields in
         begin match name with
         | Some(p, tyl) when nameable_row row ->
-            let (p', s) = best_type_path p in
-            let id = tree_of_path Type p' in
-            let args = tree_of_typlist mode (apply_subst s tyl) in
             let out_variant =
-              if is_nth s then List.hd args else Otyp_constr (id, args) in
+              match best_type_path p with
+              | Nth n -> tree_of_typexp mode (apply_nth n tyl)
+              | Path(s, p) ->
+                let id = tree_of_path Type p in
+                let args = tree_of_typlist mode (apply_subst_opt s tyl) in
+                Otyp_constr (id, args)
+            in
             if closed && all_present then
               out_variant
             else
@@ -1184,6 +1076,7 @@ let rec tree_of_typexp mode ty =
     | Tunivar _ ->
         Otyp_var (false, Names.name_of_type Names.new_name tty)
     | Tpackage (p, fl) ->
+        let p = best_module_type_path p in
         let fl =
           List.map
             (fun (li, ty) -> (
@@ -1232,9 +1125,8 @@ and tree_of_typobject mode fi nm =
   | Some (p, ty :: tyl) ->
       let non_gen = is_non_gen mode ty in
       let args = tree_of_typlist mode tyl in
-      let (p', s) = best_type_path p in
-      assert (s = Id);
-      Otyp_class (non_gen, tree_of_path Type p', args)
+      let p = best_type_path_simple p in
+      Otyp_class (non_gen, tree_of_path Type p, args)
   | _ ->
       fatal_error "Printtyp.tree_of_typobject"
   end
@@ -1281,8 +1173,7 @@ let type_scheme ppf ty =
   typexp Type_scheme ppf ty
 
 let type_path ppf p =
-  let (p', s) = best_type_path p in
-  let p = if (s = Id) then p' else p in
+  let p = best_class_type_path_simple p in
   let t = tree_of_path Type p in
   !Oprint.out_ident ppf t
 
@@ -1508,7 +1399,8 @@ let extension_constructor_args_and_ret_type_subtree ext_args ext_ret_type =
 
 let tree_of_extension_constructor id ext es =
   reset_except_context ();
-  let ty_name = Path.name ext.ext_type_path in
+  let type_path = best_type_path_simple ext.ext_type_path in
+  let ty_name = Path.name type_path in
   let ty_params = filter_params ext.ext_type_params in
   List.iter add_alias ty_params;
   List.iter prepare_type ty_params;
@@ -1627,15 +1519,18 @@ let rec prepare_class_type params = function
 
 let rec tree_of_class_type mode params =
   function
-  | Cty_constr (p', tyl, cty) ->
+  | Cty_constr (p, tyl, cty) ->
       let row = Btype.self_type_row cty in
       if List.memq (proxy row) !visited_objects
       || not (List.for_all is_Tvar params)
       then
         tree_of_class_type mode params cty
-      else
-        let namespace = Namespace.best_class_namespace p' in
-        Octy_constr (tree_of_path namespace p', tree_of_typlist Type_scheme tyl)
+      else begin
+        let nso, p = best_class_type_path p in
+        let tyl = apply_subst_opt nso tyl in
+        let namespace = Namespace.best_class_namespace p in
+        Octy_constr (tree_of_path namespace p, tree_of_typlist Type_scheme tyl)
+      end
   | Cty_signature sign ->
       let px = proxy sign.csig_self_row in
       let self_ty =
@@ -1761,28 +1656,10 @@ let cltype_declaration id ppf cl =
 (* Print a module type *)
 
 let wrap_env fenv ftree arg =
-  (* We save the current value of the short-path cache *)
-  (* From keys *)
   let env = !printing_env in
-  let old_pers = !printing_pers in
-  (* to data *)
-  let old_map = !printing_map in
-  let old_depth = !printing_depth in
-  let old_cont = !printing_cont in
-  set_printing_env (fenv env);
+  let env' = Env.update_short_paths (fenv env) in
+  set_printing_env env';
   let tree = ftree arg in
-  if !Clflags.real_paths
-     || same_printing_env env then ()
-   (* our cached key is still live in the cache, and we want to keep all
-      progress made on the computation of the [printing_map] *)
-  else begin
-    (* we restore the snapshotted cache before calling set_printing_env *)
-    printing_old := env;
-    printing_pers := old_pers;
-    printing_depth := old_depth;
-    printing_cont := old_cont;
-    printing_map := old_map
-  end;
   set_printing_env env;
   tree
 
@@ -1841,6 +1718,7 @@ let add_sigitem env x =
 
 let rec tree_of_modtype ?(ellipsis=false) = function
   | Mty_ident p ->
+      let p = best_module_type_path p in
       Omty_ident (tree_of_path Module_type p)
   | Mty_signature sg ->
       Omty_signature (if ellipsis then [Osig_ellipsis]
@@ -1852,6 +1730,7 @@ let rec tree_of_modtype ?(ellipsis=false) = function
       let res = wrap_env env (tree_of_modtype ~ellipsis) ty_res in
       Omty_functor (param, res)
   | Mty_alias p ->
+      let p = best_module_path p in
       Omty_alias (tree_of_path Module p)
 
 and tree_of_functor_parameter = function
@@ -2010,12 +1889,12 @@ let incompatibility_phrase (type variety) : variety trace_format -> string =
 let same_path t t' =
   eq_type t t' ||
   match get_desc t, get_desc t' with
-    Tconstr(p,tl,_), Tconstr(p',tl',_) ->
-      let (p1, s1) = best_type_path p and (p2, s2)  = best_type_path p' in
-      begin match s1, s2 with
-        Nth n1, Nth n2 when n1 = n2 -> true
-      | (Id | Map _), (Id | Map _) when Path.same p1 p2 ->
-          let tl = apply_subst s1 tl and tl' = apply_subst s2 tl' in
+  | Tconstr(p,tl,_), Tconstr(p',tl',_) -> begin
+      match best_type_path p, best_type_path p' with
+      | Nth n, Nth n' when n = n' -> true
+      | Path(nso, p), Path(nso', p') when Path.same p p' ->
+          let tl = apply_subst_opt nso tl in
+          let tl' = apply_subst_opt nso' tl' in
           List.length tl = List.length tl' &&
           List.for_all2 eq_type tl tl'
       | _ -> false
@@ -2549,3 +2428,22 @@ let type_expansion mode ppf ty_exp =
 let tree_of_type_declaration ident td rs =
   with_hidden_items [{hide=true; ident}]
     (fun () -> tree_of_type_declaration ident td rs)
+
+let shorten_type_path env p =
+  wrap_printing_env env
+    (fun () -> best_type_path_simple p)
+
+let shorten_module_type_path env p =
+  wrap_printing_env env
+    (fun () -> best_module_type_path p)
+
+let shorten_module_path env p =
+  wrap_printing_env env
+    (fun () -> best_module_path p)
+
+let shorten_class_type_path env p =
+  wrap_printing_env env
+    (fun () -> best_class_type_path_simple p)
+
+let () =
+  Env.shorten_module_path := shorten_module_path
