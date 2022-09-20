@@ -107,6 +107,9 @@ COMPILERLIBS_SOURCES=\
   typing/predef.ml \
   typing/datarepr.ml \
   file_formats/cmi_format.ml \
+  typing/natural.ml \
+  typing/short_paths_graph.ml \
+  typing/short_paths.ml \
   typing/persistent_env.ml \
   typing/env.ml \
   lambda/debuginfo.ml \

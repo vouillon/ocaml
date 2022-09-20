@@ -1392,6 +1392,7 @@ and transl_signature env sg =
               if not (Btype.is_row_name (Ident.name td.typ_id)) then
                 Env.register_uid td.typ_type.type_uid td.typ_loc
             ) decls;
+            let newenv = Env.update_short_paths newenv in
             let (trem, rem, final_env) = transl_sig newenv srem in
             let sg =
               map_rec_type_with_row_types ~rec_flag
@@ -1486,6 +1487,7 @@ and transl_signature env sg =
                 let id, newenv =
                   Env.enter_module_declaration ~scope name pres md env
                 in
+                let newenv = Env.update_short_paths newenv in
                 Signature_names.check_module names pmd.pmd_name.loc id;
                 Some id, newenv
             in
@@ -2481,6 +2483,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         newenv
     | Pstr_type (rec_flag, sdecls) ->
         let (decls, newenv) = Typedecl.transl_type_decl env rec_flag sdecls in
+        let newenv = Env.update_short_paths newenv in
         List.iter
           Signature_names.(fun td -> check_type names td.typ_loc td.typ_id)
           decls;
@@ -2574,6 +2577,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
             let id, e = Env.enter_module_declaration
               ~scope ~shape:md_shape name pres md env
             in
+            let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
             [Sig_module(id, pres,
@@ -2618,6 +2622,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
           (fun (md, _, _) ->
              Option.iter Signature_names.(check_module names md.md_loc) md.md_id
           ) decls;
+        let newenv = Env.update_short_paths newenv in
         let bindings1 =
           List.map2
             (fun ({md_id=id; md_type=mty}, uid, _prev_shape)
@@ -2653,6 +2658,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
             )
             env bindings1
         in
+        let newenv = Env.update_short_paths newenv in
         let bindings2 =
           check_recmodule_inclusion newenv bindings1 in
         let mbs =
@@ -2680,6 +2686,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
     | Pstr_modtype pmtd ->
         (* check that it is non-abstract *)
         let newenv, mtd, decl = transl_modtype_decl env pmtd in
+        let newenv = Env.update_short_paths newenv in
         Signature_names.check_modtype names pmtd.pmtd_loc mtd.mtd_id;
         Env.register_uid decl.mtd_uid decl.mtd_loc;
         let id = mtd.mtd_id in
@@ -2689,9 +2696,11 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         let (od, sg, newenv) =
           type_open_decl ~toplevel funct_body names env sod
         in
+        let newenv = Env.update_short_paths newenv in
         Tstr_open od, sg, shape_map, newenv
     | Pstr_class cl ->
         let (classes, new_env) = Typeclass.class_declarations env cl in
+        let new_env = Env.update_short_paths new_env in
         let shape_map = List.fold_left (fun acc cls ->
             let open Typeclass in
             let loc = cls.cls_id_loc.Location.loc in
@@ -2724,6 +2733,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         new_env
     | Pstr_class_type cl ->
         let (classes, new_env) = Typeclass.class_type_declarations env cl in
+        let new_env = Env.update_short_paths new_env in
         let shape_map = List.fold_left (fun acc decl ->
             let open Typeclass in
             let loc = decl.clsty_id_loc.Location.loc in
@@ -2767,6 +2777,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
           Env.enter_signature_and_shape ~scope ~parent_shape:shape_map
             modl_shape (extract_sig_open env smodl.pmod_loc modl.mod_type) env
         in
+        let new_env = Env.update_short_paths new_env in
         Signature_group.iter (Signature_names.check_sig_item names loc) sg;
         let incl =
           { incl_mod = modl;

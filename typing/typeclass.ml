@@ -127,7 +127,7 @@ let ctyp desc typ env loc =
    (its constructor is not available).
 *)
 let unbound_class =
-  Path.Pident (Ident.create_local "*undef*")
+  Env.unbound_class
 
 
                 (************************************)
@@ -582,7 +582,9 @@ let rec class_field_first_pass self_loc cl_num sign self_scope acc cf =
            | Fresh ->
                let cname =
                  match parent.cl_type with
-                 | Cty_constr (p, _, _) -> Path.name p
+                 | Cty_constr (p, _, _) ->
+                     let p = Printtyp.shorten_class_type_path val_env p in
+                     Path.name p
                  | _ -> "inherited"
                in
                if not (MethSet.is_empty over_meths) then
