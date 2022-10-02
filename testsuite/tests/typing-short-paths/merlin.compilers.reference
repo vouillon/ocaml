@@ -1,0 +1,41 @@
+module type S =
+  sig class virtual x : object method private virtual release : unit end end
+module Make :
+  functor (C : S) ->
+    sig class c : object method private release : unit end val x : int end
+Line 4, characters 36-49:
+4 | class a x = object method x = x end and b x = a x;;
+                                        ^^^^^^^^^^^^^
+Error: Some type variables are unbound in this type: class b : 'a -> a
+       The method x has type 'a where 'a is unbound
+Line 2, characters 38-47:
+2 | class a x = object end and b = object inherit a end;;
+                                          ^^^^^^^^^
+Error: This class expression is not a class structure; it has type 'a -> a
+Line 21, characters 25-26:
+21 |   let f (x : t) : unit = x
+                              ^
+Error: This expression has type M.t but an expression was expected of type
+         unit
+module type S = sig type t val foo : int -> t end
+module Functor : functor (S : S) -> sig val bar : int -> S.t end
+Lines 2-6, characters 13-6:
+2 | .............Functor (struct
+3 |     type t = int
+4 | 
+5 |     let foo _i = "haha"
+6 |   end)..
+Error: Modules do not match: sig type t = int val foo : 'a -> string end
+     is not included in S
+     Values do not match:
+       val foo : 'a -> string
+     is not included in
+       val foo : int -> t
+     The type int -> string is not compatible with the type int -> t
+     Type string is not compatible with type t = int
+Line 4, characters 8-22:
+4 | let x : Merlin_dep.M.t = 5;;
+                             ^
+Error: This expression has type int but an expression was expected of type
+         Merlin_dep.t
+
