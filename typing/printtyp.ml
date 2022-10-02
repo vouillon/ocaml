@@ -580,9 +580,7 @@ let () = Btype.print_raw := raw_type_expr
 (* Normalize paths *)
 
 let set_printing_env env =
-  printing_env :=
-    if !Clflags.real_paths then env(*XXX Env.empty *)
-    else env
+  printing_env := env
 
 let wrap_printing_env env f =
   set_printing_env (Env.update_short_paths env);
