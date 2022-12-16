@@ -1416,7 +1416,8 @@ end = struct
         Module.find_type t md name
     | Path.Papply _ ->
         raise Not_found
-    | _ -> assert false (*ZZZ*)
+    | Path.Pextra_ty _ ->
+        raise Not_found
 
   let find_class_type t path =
     match path with
@@ -1427,7 +1428,8 @@ end = struct
         Module.find_class_type t md name
     | Path.Papply _ ->
         raise Not_found
-    | _ -> assert false (*ZZZ*)
+    | Path.Pextra_ty _ ->
+        raise Not_found
 
   let find_module_type t path =
     match path with
@@ -1438,7 +1440,8 @@ end = struct
         Module.find_module_type t md name
     | Path.Papply _ ->
         raise Not_found
-    | _ -> assert false (*ZZZ*)
+    | Path.Pextra_ty _ ->
+        raise Not_found
 
   let canonical_type_path t id =
     match Ident_map.find id t.types with
@@ -1482,7 +1485,7 @@ end = struct
     | Path.Papply(path1, path2) ->
         is_module_path_visible t path1
         && is_module_path_visible t path2
-    | _ -> assert false (*ZZZ*)
+    | Path.Pextra_ty _ -> false
 
   let is_type_ident_visible t id =
     let name = Ident.name id in
@@ -1502,11 +1505,10 @@ end = struct
   let is_type_path_visible t = function
     | Path.Pident id -> is_type_ident_visible t id
     | Path.Pdot(path, _) -> is_module_path_visible t path
-    | Path.Papply _ ->
+    | Path.Papply _ | Path.Pextra_ty _ ->
         failwith
           "Short_paths_graph.Graph.is_type_path_visible: \
            invalid type path"
-    | _ -> assert false (*ZZZ*)
 
   let is_class_type_ident_visible t id =
     let name = Ident.name id in
@@ -1526,11 +1528,10 @@ end = struct
   let is_class_type_path_visible t = function
     | Path.Pident id -> is_class_type_ident_visible t id
     | Path.Pdot(path, _) -> is_module_path_visible t path
-    | Path.Papply _ ->
+    | Path.Papply _ | Path.Pextra_ty _ ->
         failwith
           "Short_paths_graph.Graph.is_class_type_path_visible: \
            invalid class type path"
-    | _ -> assert false (*ZZZ*)
 
   let is_module_type_ident_visible t id =
     let name = Ident.name id in
@@ -1550,11 +1551,10 @@ end = struct
   let is_module_type_path_visible t = function
     | Path.Pident id -> is_module_type_ident_visible t id
     | Path.Pdot(path, _) -> is_module_path_visible t path
-    | Path.Papply _ ->
+    | Path.Papply _ | Path.Pextra_ty _ ->
         failwith
           "Short_paths_graph.Graph.is_module_type_path_visible: \
            invalid module type path"
-    | _ -> assert false (*ZZZ*)
 
 end
 

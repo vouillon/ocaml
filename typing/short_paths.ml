@@ -1531,7 +1531,8 @@ module Shortest = struct
               Application
                 { kind; node; origin; best; min; max;
                   func; arg; func_first; searched; finished }
-          |  _ -> assert false(*ZZZ*)
+          | Path.Pextra_ty _ ->
+               assert false
       in
       loop kind canonical_path
 
