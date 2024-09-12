@@ -58,6 +58,15 @@ and debug_event_repr =
   | Event_parent of int ref
   | Event_child of int ref
 
+type performance_hint =
+    Hint_bigarray of
+      { unsafe : bool;
+        elt_kind : Lambda.bigarray_kind;
+        layout : Lambda.bigarray_layout }
+  | Hint_unsafe
+  | Hint_array of Lambda.array_kind
+  | Hint_int of Primitive.boxed_integer
+
 type label = int                     (* Symbolic code labels *)
 
 type instruction =
@@ -118,6 +127,7 @@ type instruction =
   | Kresume
   | Kresumeterm of int
   | Kreperformterm of int
+  | Khint of performance_hint
   | Kstop
 
 let immed_min = -0x40000000

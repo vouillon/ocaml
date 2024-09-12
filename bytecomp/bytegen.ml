@@ -505,6 +505,34 @@ let comp_primitive stack_info p sz args =
     ->
       fatal_error "Bytegen.comp_primitive"
 
+let insert_hint p cont =
+  match p with
+  | Pbigarrayref(unsafe, _, elt_kind, layout)
+  | Pbigarrayset (unsafe, _, elt_kind, layout) ->
+      Khint (Hint_bigarray {unsafe; elt_kind; layout}) :: cont
+  | Pstring_load_16 true
+  | Pstring_load_32 true
+  | Pstring_load_64 true
+  | Pbytes_set_16 true
+  | Pbytes_set_32 true
+  | Pbytes_set_64 true
+  | Pbytes_load_16 true
+  | Pbytes_load_32 true
+  | Pbytes_load_64 true
+  | Pbigstring_load_16 true
+  | Pbigstring_load_32 true
+  | Pbigstring_load_64 true
+  | Pbigstring_set_16 true
+  | Pbigstring_set_32 true
+  | Pbigstring_set_64 true ->
+      Khint (Hint_unsafe) :: cont
+  | Parraylength kind ->
+      Khint (Hint_array kind) :: cont
+  | Pbintcomp(bi, _) ->
+      Khint (Hint_int bi) :: cont
+  | _ ->
+      cont
+
 let is_immed n = immed_min <= n && n <= immed_max
 
 module Storer =
@@ -749,7 +777,7 @@ let rec comp_expr stack_info env exp sz cont =
       and args = [k ; arg] in
       let nargs = List.length args - 1 in
       comp_args stack_info env args sz
-        (comp_primitive stack_info p (sz + nargs - 1) args :: cont)
+        (insert_hint p (comp_primitive stack_info p (sz + nargs - 1) args :: cont))
   | Lprim (Pfloatcomp cmp, args, _) ->
       let cont =
         match cmp with
@@ -775,7 +803,7 @@ let rec comp_expr stack_info env exp sz cont =
   | Lprim(p, args, _) ->
       let nargs = List.length args - 1 in
       comp_args stack_info env args sz
-        (comp_primitive stack_info p (sz + nargs - 1) args :: cont)
+        (insert_hint p (comp_primitive stack_info p (sz + nargs - 1) args :: cont))
   | Lstaticcatch (body, (i, vars) , handler) ->
       let vars = List.map fst vars in
       let nvars = List.length vars in
