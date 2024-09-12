@@ -506,6 +506,62 @@ let comp_primitive stack_info p sz args =
     ->
       fatal_error "Bytegen.comp_primitive"
 
+let closure_hints
+    { params; return; attr = {inline; specialise; is_a_functor} } =
+  let is_default =
+    match return, inline, specialise, is_a_functor with
+      Pgenval, Default_inline, Default_specialise, false ->
+        List.for_all (fun (_, k) -> k = Pgenval) params
+    | _ -> false
+  in
+  (is_default,
+   { params = List.map snd params; return; inline; specialise; is_a_functor })
+
+let insert_closure_hint exp cont =
+  match exp with
+    Lfunction lfun ->
+      let is_default, hints = closure_hints lfun in
+      if is_default then cont else
+        Khint (Hint_closure [hints]) :: cont
+  | Lletrec (bindings, _) ->
+      let hints = List.map (fun {def} -> closure_hints def) bindings in
+      if List.for_all fst hints then cont else
+        Khint (Hint_closure (List.map snd hints)) :: cont
+  | _ ->
+      cont
+
+let insert_hint p cont =
+  match p with
+  | Pmakeblock (_, Immutable, _) | Pmakearray (_, Immutable) ->
+      Khint Hint_immutable :: cont
+  | Pbigarrayref(unsafe, _, elt_kind, layout)
+  | Pbigarrayset (unsafe, _, elt_kind, layout) ->
+      Khint (Hint_bigarray {unsafe; elt_kind; layout}) :: cont
+  | Pstring_load_16 true
+  | Pstring_load_32 true
+  | Pstring_load_64 true
+  | Pbytes_set_16 true
+  | Pbytes_set_32 true
+  | Pbytes_set_64 true
+  | Pbytes_load_16 true
+  | Pbytes_load_32 true
+  | Pbytes_load_64 true
+  | Pbigstring_load_16 true
+  | Pbigstring_load_32 true
+  | Pbigstring_load_64 true
+  | Pbigstring_set_16 true
+  | Pbigstring_set_32 true
+  | Pbigstring_set_64 true ->
+      Khint (Hint_unsafe) :: cont
+  | Parraylength kind ->
+      Khint (Hint_array kind) :: cont
+  | Pbintcomp(bi, _) ->
+      Khint (Hint_int bi) :: cont
+  | Pccall p when Primitive.native_name p <> Primitive.byte_name p ->
+      Khint (Hint_primitive p) :: cont
+  | _ ->
+      cont
+
 let is_immed n = immed_min <= n && n <= immed_max
 
 module Storer =
@@ -596,7 +652,7 @@ let rec comp_expr stack_info env exp sz cont =
           entries = entries; rec_pos = 0 } in
       Stack.push to_compile functions_to_compile;
       comp_args stack_info env (List.map (fun n -> Lvar n) fv) sz
-        (Kclosure(lbl, List.length fv) :: cont)
+        (insert_closure_hint exp (Kclosure(lbl, List.length fv) :: cont))
   | Llet(_, _k, id, arg, body)
   | Lmutlet(_k, id, arg, body) ->
       comp_expr stack_info env arg sz
@@ -622,10 +678,11 @@ let rec comp_expr stack_info env exp sz cont =
       in
       let lbls = comp_fun 0 decl in
       comp_args stack_info env (List.map (fun n -> Lvar n) fv) sz
-        (Kclosurerec(lbls, List.length fv) ::
-         (comp_expr stack_info
-            (add_vars rec_idents (sz+1) env) body (sz + ndecl)
-            (add_pop ndecl cont)))
+        (insert_closure_hint exp
+           (Kclosurerec(lbls, List.length fv) ::
+            (comp_expr stack_info
+               (add_vars rec_idents (sz+1) env) body (sz + ndecl)
+               (add_pop ndecl cont))))
   | Lprim(Popaque, [arg], _) ->
       comp_expr stack_info env arg sz cont
   | Lprim(Pignore, [arg], _) ->
@@ -679,21 +736,22 @@ let rec comp_expr stack_info env exp sz cont =
         (Kpush::
          Kconst (Const_base (Const_int n))::
          Kaddint::cont)
-  | Lprim(Pmakearray (kind, _), args, loc) ->
+  | Lprim(Pmakearray (kind, _) as p, args, loc) ->
       let cont = add_pseudo_event loc !compunit_name cont in
       begin match kind with
         Pintarray | Paddrarray ->
           comp_args stack_info env args sz
-            (Kmakeblock(List.length args, 0) :: cont)
+            (insert_hint p (Kmakeblock(List.length args, 0) :: cont))
       | Pfloatarray ->
           comp_args stack_info env args sz
-            (Kmakefloatblock(List.length args) :: cont)
+            (insert_hint p (Kmakefloatblock(List.length args) :: cont))
       | Pgenarray ->
           if args = []
           then Kmakeblock(0, 0) :: cont
           else comp_args stack_info env args sz
-                 (Kmakeblock(List.length args, 0) ::
-                  Kccall("caml_array_of_uniform_array", 1) :: cont)
+                 (insert_hint p
+                    (Kmakeblock(List.length args, 0) ::
+                     Kccall("caml_array_of_uniform_array", 1) :: cont))
       end
   | Lprim(Presume, args, _) ->
       let nargs = List.length args - 1 in
@@ -750,7 +808,8 @@ let rec comp_expr stack_info env exp sz cont =
       and args = [k ; arg] in
       let nargs = List.length args - 1 in
       comp_args stack_info env args sz
-        (comp_primitive stack_info p (sz + nargs - 1) args :: cont)
+        (insert_hint p
+           (comp_primitive stack_info p (sz + nargs - 1) args :: cont))
   | Lprim (Pfloatcomp cmp, args, _) ->
       let cont =
         match cmp with
@@ -766,10 +825,10 @@ let rec comp_expr stack_info env exp sz cont =
         | CFnge -> Kccall("caml_ge_float", 2) :: Kboolnot :: cont
       in
       comp_args stack_info env args sz cont
-  | Lprim(Pmakeblock(tag, _mut, _), args, loc) ->
+  | Lprim(Pmakeblock(tag, _mut, _) as p, args, loc) ->
       let cont = add_pseudo_event loc !compunit_name cont in
       comp_args stack_info env args sz
-        (Kmakeblock(List.length args, tag) :: cont)
+        (insert_hint p (Kmakeblock(List.length args, tag) :: cont))
   | Lprim(Pmakelazyblock tag, [arg], loc) ->
       let cont = add_pseudo_event loc !compunit_name cont in
       comp_args stack_info env [arg] sz
@@ -780,7 +839,8 @@ let rec comp_expr stack_info env exp sz cont =
   | Lprim(p, args, _) ->
       let nargs = List.length args - 1 in
       comp_args stack_info env args sz
-        (comp_primitive stack_info p (sz + nargs - 1) args :: cont)
+        (insert_hint p
+           (comp_primitive stack_info p (sz + nargs - 1) args :: cont))
   | Lstaticcatch (body, (i, vars) , handler) ->
       let vars = List.map fst vars in
       let nvars = List.length vars in
