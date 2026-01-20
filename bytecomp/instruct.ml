@@ -92,19 +92,19 @@ type instruction =
   | Kreturn of int                      (* slot size *)
   | Krestart
   | Kgrab of int                        (* number of arguments *)
-  | Kclosure of label * int
-  | Kclosurerec of label list * int
+  | Kclosure of label * int * closure_hint
+  | Kclosurerec of label list * int * closure_hint list
   | Koffsetclosure of int
   | Kgetglobal of Ident.t
   | Ksetglobal of Ident.t
   | Kconst of structured_constant
-  | Kmakeblock of int * int             (* size, tag *)
-  | Kmakefloatblock of int
+  | Kmakeblock of int * int * Asttypes.mutable_flag (* size, tag, mutable *)
+  | Kmakefloatblock of int * Asttypes.mutable_flag
   | Kgetfield of int
   | Ksetfield of int
   | Kgetfloatfield of int
   | Ksetfloatfield of int
-  | Kvectlength
+  | Kvectlength of Lambda.array_kind
   | Kgetvectitem
   | Ksetvectitem
   | Kgetstringchar
@@ -121,7 +121,7 @@ type instruction =
   | Kpoptrap
   | Kraise of raise_kind
   | Kcheck_signals
-  | Kccall of string * int
+  | Kccall of string * int * optimization_hint option
   | Knegint | Kaddint | Ksubint | Kmulint | Kdivint | Kmodint
   | Kandint | Korint | Kxorint | Klslint | Klsrint | Kasrint
   | Kintcomp of integer_comparison
@@ -137,7 +137,6 @@ type instruction =
   | Kresume
   | Kresumeterm of int
   | Kreperformterm of int
-  | Khint of optimization_hint
   | Kstop
 
 let immed_min = -0x40000000

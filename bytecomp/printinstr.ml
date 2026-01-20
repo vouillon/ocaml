@@ -33,9 +33,9 @@ let instruction ppf = function
   | Kreturn n -> fprintf ppf "\treturn %i" n
   | Krestart -> fprintf ppf "\trestart"
   | Kgrab n -> fprintf ppf "\tgrab %i" n
-  | Kclosure(lbl, n) ->
+  | Kclosure(lbl, n, _hint) ->
       fprintf ppf "\tclosure L%i, %i" lbl n
-  | Kclosurerec(lbls, n) ->
+  | Kclosurerec(lbls, n, _hints) ->
       fprintf ppf "\tclosurerec";
       List.iter (fun lbl -> fprintf ppf " %i" lbl) lbls;
       fprintf ppf ", %i" n
@@ -44,15 +44,15 @@ let instruction ppf = function
   | Ksetglobal id -> fprintf ppf "\tsetglobal %a" Ident.print id
   | Kconst cst ->
       fprintf ppf "@[<10>\tconst@ %a@]" Printlambda.structured_constant cst
-  | Kmakeblock(n, m) ->
+  | Kmakeblock(n, m, _mut) ->
       fprintf ppf "\tmakeblock %i, %i" n m
-  | Kmakefloatblock(n) ->
+  | Kmakefloatblock(n, _mut) ->
       fprintf ppf "\tmakefloatblock %i" n
   | Kgetfield n -> fprintf ppf "\tgetfield %i" n
   | Ksetfield n -> fprintf ppf "\tsetfield %i" n
   | Kgetfloatfield n -> fprintf ppf "\tgetfloatfield %i" n
   | Ksetfloatfield n -> fprintf ppf "\tsetfloatfield %i" n
-  | Kvectlength -> fprintf ppf "\tvectlength"
+  | Kvectlength _ -> fprintf ppf "\tvectlength"
   | Kgetvectitem -> fprintf ppf "\tgetvectitem"
   | Ksetvectitem -> fprintf ppf "\tsetvectitem"
   | Kgetstringchar -> fprintf ppf "\tgetstringchar"
@@ -73,7 +73,7 @@ let instruction ppf = function
   | Kpoptrap -> fprintf ppf "\tpoptrap"
   | Kraise k-> fprintf ppf "\t%s" (Lambda.raise_kind k)
   | Kcheck_signals -> fprintf ppf "\tcheck_signals"
-  | Kccall(s, n) ->
+  | Kccall(s, n, _hint) ->
       fprintf ppf "\tccall %s, %i" s n
   | Knegint -> fprintf ppf "\tnegint"
   | Kaddint -> fprintf ppf "\taddint"
@@ -109,7 +109,6 @@ let instruction ppf = function
                          ev.ev_loc.Location.loc_start.Lexing.pos_fname
                          ev.ev_loc.Location.loc_start.Lexing.pos_cnum
                          ev.ev_loc.Location.loc_end.Lexing.pos_cnum
-  | Khint _ -> fprintf ppf "\thint"
 
 let rec instruction_list ppf = function
     [] -> ()
