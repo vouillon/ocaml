@@ -15,7 +15,6 @@
 
 (* Generation of bytecode + relocation information *)
 
-open Asttypes
 open Config
 open Misc
 open Asttypes
