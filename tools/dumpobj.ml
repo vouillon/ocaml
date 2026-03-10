@@ -418,7 +418,7 @@ let print_event ev =
       ls.Lexing.pos_lnum (ls.Lexing.pos_cnum - ls.Lexing.pos_bol)
       (le.Lexing.pos_cnum - ls.Lexing.pos_bol)
 
-let print_hint hint =
+let print_ccall_hint hint =
   match hint with
   | Hint_bigarray { unsafe; elt_kind; layout } ->
     printf " (%s%s%s)"
@@ -444,21 +444,12 @@ let print_hint hint =
        | Pbigarray_fortran_layout -> " Fortran")
   | Hint_unsafe ->
       printf " (unsafe)"
-  | Hint_array kind ->
-      printf " (%s)"
-        (match kind with
-         | Pgenarray -> "generic"
-         | Paddrarray -> "addr"
-         | Pintarray -> "int"
-         | Pfloatarray -> "float")
   | Hint_int kind ->
       printf " (%s)"
         (match kind with
          | Pnativeint -> "nativeint"
          | Pint32 -> "int32"
          | Pint64 -> "int64")
-  | Hint_immutable ->
-      printf " (immutable)"
   | Hint_primitive p ->
       printf " (%s:" p.prim_native_name;
       let print_repr i repr =
@@ -476,7 +467,21 @@ let print_hint hint =
       List.iteri print_repr p.prim_native_repr_args;
       print_repr 1 p.prim_native_repr_res;
       printf ")"
-  | Hint_closure lst ->
+
+let print_hint hint =
+  match hint with
+  | Hint_immutable_block ->
+      printf " (immutable)"
+  | Hint_arraylength kind ->
+      printf " (%s)"
+        (match kind with
+         | Pgenarray -> "generic"
+         | Paddrarray -> "addr"
+         | Pintarray -> "int"
+         | Pfloatarray -> "float")
+  | Hint_ccall h ->
+      print_ccall_hint h
+  | Hint_closures lst ->
       let print_value_kind (k : Lambda.value_kind) =
         printf
           (match k with

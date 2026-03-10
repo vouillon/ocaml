@@ -65,17 +65,20 @@ type closure_hint =
     specialise : Lambda.specialise_attribute;
     is_a_functor : bool }
 
-type optimization_hint =
-  | Hint_immutable
+type ccall_hint =
   | Hint_unsafe
   | Hint_int of Primitive.boxed_integer
-  | Hint_array of Lambda.array_kind
   | Hint_bigarray of
       { unsafe : bool;
         elt_kind : Lambda.bigarray_kind;
         layout : Lambda.bigarray_layout }
   | Hint_primitive of Primitive.description
-  | Hint_closure of closure_hint list
+
+type optimization_hint =
+  | Hint_immutable_block
+  | Hint_arraylength of Lambda.array_kind
+  | Hint_closures of closure_hint list
+  | Hint_ccall of ccall_hint
 
 type label = int                     (* Symbolic code labels *)
 
@@ -93,7 +96,7 @@ type instruction =
   | Krestart
   | Kgrab of int                        (* number of arguments *)
   | Kclosure of label * int * closure_hint
-  | Kclosurerec of label list * int * closure_hint list
+  | Kclosurerec of (label * closure_hint) list * int
   | Koffsetclosure of int
   | Kgetglobal of Ident.t
   | Ksetglobal of Ident.t
@@ -121,7 +124,7 @@ type instruction =
   | Kpoptrap
   | Kraise of raise_kind
   | Kcheck_signals
-  | Kccall of string * int * optimization_hint option
+  | Kccall of string * int * ccall_hint option
   | Knegint | Kaddint | Ksubint | Kmulint | Kdivint | Kmodint
   | Kandint | Korint | Kxorint | Klslint | Klsrint | Kasrint
   | Kintcomp of integer_comparison

@@ -35,9 +35,9 @@ let instruction ppf = function
   | Kgrab n -> fprintf ppf "\tgrab %i" n
   | Kclosure(lbl, n, _hint) ->
       fprintf ppf "\tclosure L%i, %i" lbl n
-  | Kclosurerec(lbls, n, _hints) ->
+  | Kclosurerec(lbl_hints, n) ->
       fprintf ppf "\tclosurerec";
-      List.iter (fun lbl -> fprintf ppf " %i" lbl) lbls;
+      List.iter (fun (lbl, _) -> fprintf ppf " %i" lbl) lbl_hints;
       fprintf ppf ", %i" n
   | Koffsetclosure n -> fprintf ppf "\toffsetclosure %i" n
   | Kgetglobal id -> fprintf ppf "\tgetglobal %a" Ident.print id

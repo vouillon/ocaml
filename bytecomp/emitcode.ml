@@ -253,13 +253,13 @@ let emit_instr = function
   | Krestart -> out opRESTART
   | Kgrab n -> out opGRAB; out_int n
   | Kclosure(lbl, n, hint) ->
-      record_hint (Hint_closure [hint]);
+      record_hint (Hint_closures [hint]);
       out opCLOSURE; out_int n; out_label lbl
-  | Kclosurerec(lbls, n, hints) ->
-      record_hint (Hint_closure hints);
-      out opCLOSUREREC; out_int (List.length lbls); out_int n;
+  | Kclosurerec(lbl_hints, n) ->
+      record_hint (Hint_closures (List.map snd lbl_hints));
+      out opCLOSUREREC; out_int (List.length lbl_hints); out_int n;
       let org = !out_position in
-      List.iter (out_label_with_orig org) lbls
+      List.iter (fun (lbl, _) -> out_label_with_orig org lbl) lbl_hints
   | Koffsetclosure ofs ->
       if ofs = -3 || ofs = 0 || ofs = 3
       then out (opOFFSETCLOSURE0 + ofs / 3)
@@ -280,7 +280,9 @@ let emit_instr = function
           out opGETGLOBAL; slot_for_literal sc
       end
   | Kmakeblock(n, t, mut) ->
-      (match mut with Immutable -> record_hint Hint_immutable | Mutable -> ());
+      (match mut with
+       | Immutable -> record_hint Hint_immutable_block
+       | Mutable -> ());
       if n = 0 then
         if t = 0 then out opATOM0 else (out opATOM; out_int t)
       else if n < 4 then (out(opMAKEBLOCK1 + n - 1); out_int t)
@@ -290,12 +292,14 @@ let emit_instr = function
   | Ksetfield n ->
       if n < 4 then out(opSETFIELD0 + n) else (out opSETFIELD; out_int n)
   | Kmakefloatblock(n, mut) ->
-      (match mut with Immutable -> record_hint Hint_immutable | Mutable -> ());
+      (match mut with
+       | Immutable -> record_hint Hint_immutable_block
+       | Mutable -> ());
       if n = 0 then out opATOM0 else (out opMAKEFLOATBLOCK; out_int n)
   | Kgetfloatfield n -> out opGETFLOATFIELD; out_int n
   | Ksetfloatfield n -> out opSETFLOATFIELD; out_int n
   | Kvectlength kind ->
-      record_hint (Hint_array kind);
+      record_hint (Hint_arraylength kind);
       out opVECTLENGTH
   | Kgetvectitem -> out opGETVECTITEM
   | Ksetvectitem -> out opSETVECTITEM
@@ -321,7 +325,7 @@ let emit_instr = function
   | Kraise Raise_notrace -> out opRAISE_NOTRACE
   | Kcheck_signals -> out opCHECK_SIGNALS
   | Kccall(name, n, hint) ->
-      (match hint with Some h -> record_hint h | None -> ());
+      (match hint with Some h -> record_hint (Hint_ccall h) | None -> ());
       if n <= 5
       then (out (opC_CALL1 + n - 1); slot_for_c_prim name)
       else (out opC_CALLN; out_int n; slot_for_c_prim name)

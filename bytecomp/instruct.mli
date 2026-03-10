@@ -87,15 +87,11 @@ type closure_hint =
     specialise : Lambda.specialise_attribute;
     is_a_functor : bool }
 
-type optimization_hint =
-  | Hint_immutable
-    (* Allocation of an immutable block *)
+type ccall_hint =
   | Hint_unsafe
     (* Unsafe array, string or bytes access *)
   | Hint_int of Primitive.boxed_integer
     (* Comparison between boxed integers *)
-  | Hint_array of Lambda.array_kind
-    (* Array length *)
   | Hint_bigarray of
       { unsafe : bool;
         elt_kind : Lambda.bigarray_kind;
@@ -103,8 +99,16 @@ type optimization_hint =
     (* Bigarray access *)
   | Hint_primitive of Primitive.description
     (* Primitive call *)
-  | Hint_closure of closure_hint list
+
+type optimization_hint =
+  | Hint_immutable_block
+    (* Allocation of an immutable block *)
+  | Hint_arraylength of Lambda.array_kind
+    (* Array length *)
+  | Hint_closures of closure_hint list
     (* Closure allocations *)
+  | Hint_ccall of ccall_hint
+    (* C call *)
 
 (* Abstract machine instructions *)
 
@@ -124,7 +128,7 @@ type instruction =
   | Krestart
   | Kgrab of int                        (* number of arguments *)
   | Kclosure of label * int * closure_hint
-  | Kclosurerec of label list * int * closure_hint list
+  | Kclosurerec of (label * closure_hint) list * int
   | Koffsetclosure of int
   | Kgetglobal of Ident.t
   | Ksetglobal of Ident.t
@@ -152,7 +156,7 @@ type instruction =
   | Kpoptrap
   | Kraise of raise_kind
   | Kcheck_signals
-  | Kccall of string * int * optimization_hint option
+  | Kccall of string * int * ccall_hint option
   | Knegint | Kaddint | Ksubint | Kmulint | Kdivint | Kmodint
   | Kandint | Korint | Kxorint | Klslint | Klsrint | Kasrint
   | Kintcomp of integer_comparison

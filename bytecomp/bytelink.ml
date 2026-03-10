@@ -228,7 +228,7 @@ let link_compunit output_fun currpos_fun inchan file_name compunit =
       else file_path :: debug_dirs in
     debug_info := (currpos_fun(), debug_event_list, debug_dirs) :: !debug_info
   end;
-  if compunit.cu_hint > 0 then begin
+  if !Clflags.bytecode_hints && compunit.cu_hint > 0 then begin
     seek_in inchan compunit.cu_hint;
     let hint_list : (int * Instruct.optimization_hint) list =
       Compression.input_value inchan in
@@ -608,9 +608,6 @@ let output_cds_file outfile =
        (* Debug info *)
        output_debug_info outchan;
        Bytesections.record toc_writer DBUG;
-       (* Hint info *)
-       output_hint_info outchan;
-       Bytesections.record toc_writer HINT;
        (* The table of contents and the trailer *)
        Bytesections.write_toc_and_trailer toc_writer;
     )

@@ -658,9 +658,11 @@ let rec comp_expr stack_info env exp sz cont =
             lbl :: comp_fun (pos + 1) rem
       in
       let lbls = comp_fun 0 decl in
-      let hints = List.map (fun {def} -> closure_hint def) decl in
+      let lbl_hints =
+        List.map2 (fun lbl {def} -> (lbl, closure_hint def)) lbls decl
+      in
       comp_args stack_info env (List.map (fun n -> Lvar n) fv) sz
-        (Kclosurerec(lbls, List.length fv, hints) ::
+        (Kclosurerec(lbl_hints, List.length fv) ::
          (comp_expr stack_info
             (add_vars rec_idents (sz+1) env) body (sz + ndecl)
             (add_pop ndecl cont)))
@@ -730,7 +732,7 @@ let rec comp_expr stack_info env exp sz cont =
           if args = []
           then Kmakeblock(0, 0, mut) :: cont
           else comp_args stack_info env args sz
-                 (Kmakeblock(List.length args, 0, Immutable) ::
+                 (Kmakeblock(List.length args, 0, mut) ::
                   Kccall("caml_array_of_uniform_array", 1, None) :: cont)
       end
   | Lprim(Presume, args, _) ->
