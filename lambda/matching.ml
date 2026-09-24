@@ -2038,17 +2038,22 @@ let get_expr_args_constr ~scopes head { arg; mut; _ } rem =
   in
   let loc = head_loc ~scopes head in
   let make_field_accesses binding_kind first_pos last_pos argl =
-    let rec make_args pos =
+    let rec make_args pos arg_types =
       if pos > last_pos then
         argl
       else
+        let ptr, arg_types =
+          match arg_types with
+          | ty :: rem -> Typeopt.maybe_pointer_type head.pat_env ty, rem
+          | [] -> Pointer, []
+        in
         {
-          arg = Lprim (Pfield (pos, Pointer, Immutable), [ arg ], loc);
+          arg = Lprim (Pfield (pos, ptr, Immutable), [ arg ], loc);
           mut = compose_mut mut Immutable;
           binding_kind;
-        } :: make_args (pos + 1)
+        } :: make_args (pos + 1) arg_types
     in
-    make_args first_pos
+    make_args first_pos cstr.cstr_args
   in
   if cstr.cstr_inlined <> None then
     { arg; binding_kind = Alias; mut } :: rem
@@ -2283,17 +2288,27 @@ let get_pat_args_tuple arity p rem =
 let get_expr_args_tuple ~scopes head { arg; mut; _ } rem =
   let loc = head_loc ~scopes head in
   let arity = Patterns.Head.arity head in
-  let rec make_args pos =
+  let component_types =
+    match Types.get_desc (Ctype.expand_head head.pat_env head.pat_type) with
+    | Ttuple l when List.length l = arity -> List.map snd l
+    | _ -> []
+  in
+  let rec make_args pos component_types =
     if pos >= arity then
       rem
     else
+      let ptr, component_types =
+        match component_types with
+        | ty :: rem -> Typeopt.maybe_pointer_type head.pat_env ty, rem
+        | [] -> Pointer, []
+      in
       {
-        arg = Lprim (Pfield (pos, Pointer, Immutable), [ arg ], loc);
+        arg = Lprim (Pfield (pos, ptr, Immutable), [ arg ], loc);
         binding_kind = Alias;
         mut = compose_mut mut Immutable;
-      } :: make_args (pos + 1)
+      } :: make_args (pos + 1) component_types
   in
-  make_args 0
+  make_args 0 component_types
 
 let divide_tuple ~scopes head ctx pm =
   let arity = Patterns.Head.arity head in
