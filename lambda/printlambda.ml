@@ -277,7 +277,7 @@ let primitive ppf = function
        | Backend_type -> "backend_type"
        | Standard_library_default -> "standard_library_default" in
      fprintf ppf "sys.constant_%s" const_name
-  | Pisint -> fprintf ppf "isint"
+  | Pisint _ -> fprintf ppf "isint"
   | Pisout -> fprintf ppf "isout"
   | Pcheckbound -> fprintf ppf "checkbound"
   | Pbintofint bi -> print_boxed_integer "of_int" ppf bi
@@ -430,7 +430,7 @@ let name_of_primitive = function
   | Parrayrefs _ -> "Parrayrefs"
   | Parraysets _ -> "Parraysets"
   | Pctconst _ -> "Pctconst"
-  | Pisint -> "Pisint"
+  | Pisint _ -> "Pisint"
   | Pisout -> "Pisout"
   | Pcheckbound -> "Pcheckbound"
   | Pbintofint _ -> "Pbintofint"
