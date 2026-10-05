@@ -34,3 +34,23 @@ type t = A of int * string
 
 (* Arguments of a constructor pattern *)
 let constructor_arguments (A (x, y)) = x, y
+
+(* Hints on integer comparisons *)
+
+external ( = ) : 'a -> 'a -> bool = "%equal"
+external ( <> ) : 'a -> 'a -> bool = "%notequal"
+external ( < ) : 'a -> 'a -> bool = "%lessthan"
+external ( == ) : 'a -> 'a -> bool = "%eq"
+external ( != ) : 'a -> 'a -> bool = "%noteq"
+
+let int_equal (x : int) y = x = y
+
+let int_not_equal (x : int) y = x <> y
+
+(* Ordering comparisons are always on integers: no hint *)
+let int_less_than (x : int) y = x < y
+
+(* Physical comparisons: no hint *)
+let physical_equal (x : string) y = x == y
+
+let physical_not_equal (x : string) y = x != y

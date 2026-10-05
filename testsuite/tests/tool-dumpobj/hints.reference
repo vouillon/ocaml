@@ -1,61 +1,106 @@
-       0  BRANCH 52
-       2  ACC0
-       3  GETFIELD1
-       4  PUSHACC1
-       5  GETFIELD0 (immediate)
-       6  MAKEBLOCK2 0 (immutable)
-       8  RETURN 1
-      10  ACC0
-      11  GETFIELD1
-      12  PUSHACC1
-      13  GETFIELD0 (immediate)
-      14  MAKEBLOCK2 0 (immutable)
-      16  RETURN 1
+       0  BRANCH 92
+       2  RESTART
+       3  GRAB 1
+       5  ACC1
+       6  PUSHACC1
+       7  NEQ
+       8  RETURN 2
+      10  RESTART
+      11  GRAB 1
+      13  ACC1
+      14  PUSHACC1
+      15  EQ
+      16  RETURN 2
       18  RESTART
       19  GRAB 1
       21  ACC1
       22  PUSHACC1
-      23  C_CALL2 caml_array_get_addr
-      25  RETURN 2
-      27  RESTART
-      28  GRAB 1
-      30  ACC1
-      31  PUSHACC1
-      32  GETVECTITEM (immediate)
-      33  RETURN 2
-      35  RESTART
-      36  GRAB 1
-      38  ACC1
-      39  PUSHACC1
-      40  C_CALL2 caml_array_get_addr (int array)
-      42  RETURN 2
-      44  ACC0
-      45  GETFIELD1
-      46  RETURN 1
-      48  ACC0
-      49  GETFIELD0 (immediate)
-      50  RETURN 1
-      52  CLOSURE 0, 48 (value -> int)
-      55  PUSH
-      56  CLOSURE 0, 44 (value -> value)
-      59  PUSH
-      60  CLOSURE 0, 36 (value -> int -> int)
-      63  PUSH
-      64  CLOSURE 0, 28 (value -> int -> int)
-      67  PUSH
-      68  CLOSURE 0, 19 (value -> int -> value)
-      71  PUSH
-      72  CLOSURE 0, 10 (value -> value)
-      75  PUSH
-      76  CLOSURE 0, 2 (value -> value)
-      79  PUSHACC0
-      80  PUSHACC2
-      81  PUSHACC4
-      82  PUSHACC6
-      83  PUSHACC 8
-      85  PUSHACC 10
-      87  PUSHACC 12
-      89  MAKEBLOCK 7, 0 (immutable)
-      92  POP 7
-      94  SETGLOBAL compilation unit `Hints'
-      96  STOP
+      23  LTINT
+      24  RETURN 2
+      26  RESTART
+      27  GRAB 1
+      29  ACC1
+      30  PUSHACC1
+      31  NEQ (int comparison)
+      32  RETURN 2
+      34  RESTART
+      35  GRAB 1
+      37  ACC1
+      38  PUSHACC1
+      39  EQ (int comparison)
+      40  RETURN 2
+      42  ACC0
+      43  GETFIELD1
+      44  PUSHACC1
+      45  GETFIELD0 (immediate)
+      46  MAKEBLOCK2 0 (immutable)
+      48  RETURN 1
+      50  ACC0
+      51  GETFIELD1
+      52  PUSHACC1
+      53  GETFIELD0 (immediate)
+      54  MAKEBLOCK2 0 (immutable)
+      56  RETURN 1
+      58  RESTART
+      59  GRAB 1
+      61  ACC1
+      62  PUSHACC1
+      63  C_CALL2 caml_array_get_addr
+      65  RETURN 2
+      67  RESTART
+      68  GRAB 1
+      70  ACC1
+      71  PUSHACC1
+      72  GETVECTITEM (immediate)
+      73  RETURN 2
+      75  RESTART
+      76  GRAB 1
+      78  ACC1
+      79  PUSHACC1
+      80  C_CALL2 caml_array_get_addr (int array)
+      82  RETURN 2
+      84  ACC0
+      85  GETFIELD1
+      86  RETURN 1
+      88  ACC0
+      89  GETFIELD0 (immediate)
+      90  RETURN 1
+      92  CLOSURE 0, 88 (value -> int)
+      95  PUSH
+      96  CLOSURE 0, 84 (value -> value)
+      99  PUSH
+     100  CLOSURE 0, 76 (value -> int -> int)
+     103  PUSH
+     104  CLOSURE 0, 68 (value -> int -> int)
+     107  PUSH
+     108  CLOSURE 0, 59 (value -> int -> value)
+     111  PUSH
+     112  CLOSURE 0, 50 (value -> value)
+     115  PUSH
+     116  CLOSURE 0, 42 (value -> value)
+     119  PUSH
+     120  CLOSURE 0, 35 (int -> int -> int)
+     123  PUSH
+     124  CLOSURE 0, 27 (int -> int -> int)
+     127  PUSH
+     128  CLOSURE 0, 19 (int -> int -> int)
+     131  PUSH
+     132  CLOSURE 0, 11 (value -> value -> int)
+     135  PUSH
+     136  CLOSURE 0, 3 (value -> value -> int)
+     139  PUSHACC0
+     140  PUSHACC2
+     141  PUSHACC4
+     142  PUSHACC6
+     143  PUSHACC 8
+     145  PUSHACC 10
+     147  PUSHACC 12
+     149  PUSHACC 14
+     151  PUSHACC 16
+     153  PUSHACC 18
+     155  PUSHACC 20
+     157  PUSHACC 22
+     159  MAKEBLOCK 12, 0 (immutable)
+     162  POP 12
+     164  SETGLOBAL compilation unit `Hints'
+     166  STOP
